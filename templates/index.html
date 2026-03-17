@@ -1,0 +1,1088 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StatsBomb Explorer</title>
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface2: #1e2530;
+      --border: #30363d;
+      --accent: #3fb950;
+      --accent2: #58a6ff;
+      --warn: #f78166;
+      --gold: #e3b341;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --text-dim: #484f58;
+      --radius: 8px;
+      --transition: 0.18s ease;
+    }
+
+    html, body { height: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 2rem;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: var(--text);
+      text-decoration: none;
+    }
+    .logo-icon {
+      width: 30px; height: 30px;
+      background: var(--accent);
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Breadcrumb */
+    #breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+    #breadcrumb .crumb {
+      cursor: pointer;
+      padding: 3px 8px;
+      border-radius: 4px;
+      transition: background var(--transition), color var(--transition);
+    }
+    #breadcrumb .crumb:hover { background: var(--surface2); color: var(--text); }
+    #breadcrumb .crumb.active { color: var(--accent2); }
+    #breadcrumb .sep { color: var(--text-dim); }
+
+    main {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 1fr;
+      min-height: 0;
+    }
+
+    #sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .sidebar-header {
+      padding: 16px 16px 10px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #sidebar-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+    #sidebar-list::-webkit-scrollbar { width: 4px; }
+    #sidebar-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .comp-group { margin-bottom: 4px; }
+    .comp-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background var(--transition);
+      font-size: 0.88rem;
+      font-weight: 500;
+      border-radius: 0;
+    }
+    .comp-header:hover { background: var(--surface2); }
+    .comp-header.active { background: color-mix(in srgb, var(--accent2) 12%, transparent); color: var(--accent2); }
+    .comp-header .flag { font-size: 1rem; }
+    .comp-header .cname { flex: 1; }
+    .comp-header .arrow {
+      font-size: 0.65rem;
+      color: var(--text-dim);
+      transition: transform var(--transition);
+    }
+    .comp-header.open .arrow { transform: rotate(90deg); }
+
+    .season-list { display: none; padding: 0 0 4px 0; }
+    .season-list.open { display: block; }
+    .season-item {
+      padding: 6px 16px 6px 40px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: background var(--transition), color var(--transition);
+    }
+    .season-item:hover { background: var(--surface2); color: var(--text); }
+    .season-item.active { color: var(--accent); font-weight: 600; }
+
+    #content {
+      overflow-y: auto;
+      padding: 28px 32px;
+    }
+    #content::-webkit-scrollbar { width: 6px; }
+    #content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    #panel-welcome {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      text-align: center;
+      gap: 16px;
+    }
+    .welcome-icon { font-size: 4rem; }
+    #panel-welcome h1 { font-size: 1.8rem; font-weight: 700; }
+    #panel-welcome p { color: var(--text-muted); max-width: 380px; line-height: 1.6; }
+
+    /* Section heading */
+    .section-heading {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .section-heading h2 { font-size: 1.2rem; font-weight: 600; }
+    .section-heading .sub { font-size: 0.82rem; color: var(--text-muted); }
+
+    /* Search box */
+    .search-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .search-wrap .icon {
+      position: absolute;
+      left: 10px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      pointer-events: none;
+    }
+    .search-box {
+      width: 100%;
+      padding: 9px 12px 9px 32px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      font-size: 0.88rem;
+      outline: none;
+      transition: border-color var(--transition);
+    }
+    .search-box:focus { border-color: var(--accent2); }
+    .search-box::placeholder { color: var(--text-dim); }
+
+    /* Match cards grid */
+    .match-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 14px;
+    }
+
+    .match-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 18px;
+      cursor: pointer;
+      transition: border-color var(--transition), transform var(--transition), box-shadow var(--transition);
+    }
+    .match-card:hover {
+      border-color: var(--accent2);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 24px rgba(0,0,0,0.4);
+    }
+
+    .match-card .date {
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .match-card .date .tag {
+      background: var(--surface2);
+      padding: 1px 7px;
+      border-radius: 20px;
+      font-size: 0.7rem;
+    }
+
+    .match-scoreline {
+      display: grid;
+      grid-template-columns: 1fr 52px 1fr;
+      align-items: center;
+      gap: 8px;
+      text-align: center;
+    }
+    .match-scoreline .team {
+      font-size: 0.88rem;
+      font-weight: 600;
+      line-height: 1.3;
+    }
+    .match-scoreline .team.home { text-align: right; }
+    .match-scoreline .team.away { text-align: left; }
+    .match-scoreline .score {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--text);
+      background: var(--surface2);
+      border-radius: 6px;
+      padding: 4px 6px;
+      min-width: 52px;
+    }
+
+    .match-card .meta {
+      margin-top: 12px;
+      font-size: 0.74rem;
+      color: var(--text-dim);
+      display: flex;
+      gap: 12px;
+    }
+
+    .match-hero {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 24px;
+    }
+    .hero-score {
+      display: grid;
+      grid-template-columns: 1fr 100px 1fr;
+      align-items: center;
+      text-align: center;
+      gap: 16px;
+      margin-bottom: 16px;
+    }
+    .hero-score .team-name { font-size: 1.3rem; font-weight: 700; }
+    .hero-score .team-name.home { text-align: right; }
+    .hero-score .team-name.away { text-align: left; }
+    .hero-score .main-score {
+      font-size: 2.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      line-height: 1;
+    }
+    .hero-meta {
+      text-align: center;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .hero-meta span { display: flex; align-items: center; gap: 4px; }
+
+    /* Stats bar */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+    @media (max-width: 900px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+    }
+    .stat-card .label {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--text-muted);
+      margin-bottom: 10px;
+    }
+    .stat-bar-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+    .stat-val { font-size: 1rem; font-weight: 700; min-width: 32px; }
+    .stat-val.home { text-align: right; }
+    .stat-val.away { text-align: left; }
+    .bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 3px;
+      overflow: hidden;
+      display: flex;
+    }
+    .bar-home { background: var(--accent2); height: 100%; border-radius: 3px 0 0 3px; transition: width 0.5s ease; }
+    .bar-away { background: var(--warn); height: 100%; border-radius: 0 3px 3px 0; transition: width 0.5s ease; }
+
+    /* Events table */
+    .events-toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .filter-select {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 0.82rem;
+      outline: none;
+      cursor: pointer;
+      transition: border-color var(--transition);
+    }
+    .filter-select:focus { border-color: var(--accent2); }
+
+    .btn {
+      padding: 7px 14px;
+      border-radius: var(--radius);
+      font-size: 0.82rem;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background var(--transition), transform var(--transition);
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #0d1117; }
+    .btn-primary:hover { background: #4ac965; }
+    .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
+    .btn-secondary:hover { background: var(--border); }
+    .btn-ghost { background: transparent; color: var(--accent2); border: 1px solid var(--accent2); }
+    .btn-ghost:hover { background: color-mix(in srgb, var(--accent2) 12%, transparent); }
+
+    .events-count {
+      margin-left: auto;
+      font-size: 0.78rem;
+      color: var(--text-muted);
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+    }
+    thead th {
+      background: var(--surface2);
+      padding: 10px 14px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    thead th:first-child { border-radius: var(--radius) 0 0 0; }
+    thead th:last-child  { border-radius: 0 var(--radius) 0 0; }
+    tbody tr {
+      border-top: 1px solid var(--border);
+      transition: background var(--transition);
+    }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td {
+      padding: 9px 14px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    .period-badge {
+      display: inline-block;
+      padding: 1px 7px;
+      border-radius: 10px;
+      font-size: 0.68rem;
+      font-weight: 600;
+    }
+    .period-1 { background: color-mix(in srgb, var(--accent2) 18%, transparent); color: var(--accent2); }
+    .period-2 { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+    .period-3, .period-4, .period-5 {
+      background: color-mix(in srgb, var(--gold) 18%, transparent);
+      color: var(--gold);
+    }
+
+    .type-pill {
+      display: inline-block;
+      padding: 2px 9px;
+      border-radius: 10px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      background: var(--surface2);
+      color: var(--text-muted);
+    }
+    .type-Shot      { background: color-mix(in srgb, var(--gold) 18%, transparent);  color: var(--gold); }
+    .type-Goal      { background: color-mix(in srgb, var(--accent) 25%, transparent); color: var(--accent); font-weight: 700; }
+    .type-Pass      { background: color-mix(in srgb, var(--accent2) 14%, transparent); color: var(--accent2); }
+    .type-Carry     { background: color-mix(in srgb, #a371f7 15%, transparent); color: #a371f7; }
+    .type-Dribble   { background: color-mix(in srgb, #f78166 18%, transparent); color: #f78166; }
+    .type-Clearance { background: color-mix(in srgb, #e3b341 14%, transparent); color: #e3b341; }
+    .type-Tackle    { background: color-mix(in srgb, #f78166 15%, transparent); color: #f78166; }
+
+    .outcome-pill {
+      font-size: 0.7rem;
+      padding: 1px 7px;
+      border-radius: 10px;
+    }
+    .outcome-Goal    { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--accent); font-weight: 700; }
+    .outcome-Saved   { background: color-mix(in srgb, var(--accent2) 15%, transparent); color: var(--accent2); }
+    .outcome-Off\ T, .outcome-Blocked, .outcome-Wayward {
+      background: color-mix(in srgb, var(--warn) 15%, transparent);
+      color: var(--warn);
+    }
+    .outcome-Complete   { background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); }
+    .outcome-Incomplete { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+
+    .xg-val { font-variant-numeric: tabular-nums; color: var(--gold); }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 20px; height: 20px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-block {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--text-muted);
+      padding: 32px 0;
+      font-size: 0.9rem;
+    }
+
+    /* Empty state */
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .empty-state .icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .empty-state p { font-size: 0.9rem; }
+
+    /* Back button */
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      border-radius: 6px;
+      margin-bottom: 18px;
+      transition: background var(--transition), color var(--transition);
+    }
+    .back-btn:hover { background: var(--surface2); color: var(--text); }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      main { grid-template-columns: 1fr; }
+      #sidebar { display: none; }
+      #content { padding: 18px 16px; }
+      .hero-score { grid-template-columns: 1fr 70px 1fr; }
+      .hero-score .main-score { font-size: 2rem; }
+    }
+  </style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+  const { useState, useEffect, useMemo, useRef, useCallback, Fragment } = React;
+
+  const COUNTRY_FLAGS = {
+    Spain: '🇪🇸', Germany: '🇩🇪', England: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', France: '🇫🇷',
+    Italy: '🇮🇹', Portugal: '🇵🇹', Africa: '🌍', Europe: '🇪🇺',
+    World: '🌏', International: '🌐', Brazil: '🇧🇷', Argentina: '🇦🇷',
+    'United States': '🇺🇸', Australia: '🇦🇺', Greece: '🇬🇷', India: '🇮🇳',
+    Ireland: '🇮🇪', Sweden: '🇸🇪', Netherlands: '🇳🇱', Belgium: '🇧🇪',
+    "Women's International": '🌐', Mexico: '🇲🇽', Scotland: '🏴󠁧󠁢󠁳󠁣󠁴󠁿',
+    'United Arab Emirates': '🇦🇪',
+  };
+
+  const getFlag = country => COUNTRY_FLAGS[country] || '🏆';
+
+  const formatDate = d => d
+    ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+
+  // Inline styles for type/outcome pills (avoids CSS class-name escaping issues)
+  const TYPE_STYLES = {
+    Shot:       { background: 'color-mix(in srgb, var(--gold) 18%, transparent)',    color: 'var(--gold)' },
+    Pass:       { background: 'color-mix(in srgb, var(--accent2) 14%, transparent)', color: 'var(--accent2)' },
+    Carry:      { background: 'color-mix(in srgb, #a371f7 15%, transparent)',         color: '#a371f7' },
+    Dribble:    { background: 'color-mix(in srgb, #f78166 18%, transparent)',         color: '#f78166' },
+    Clearance:  { background: 'color-mix(in srgb, #e3b341 14%, transparent)',         color: '#e3b341' },
+    Tackle:     { background: 'color-mix(in srgb, #f78166 15%, transparent)',         color: '#f78166' },
+  };
+
+  const OUTCOME_STYLES = {
+    Goal:        { background: 'color-mix(in srgb, var(--accent) 22%, transparent)',  color: 'var(--accent)',  fontWeight: 700 },
+    Saved:       { background: 'color-mix(in srgb, var(--accent2) 15%, transparent)', color: 'var(--accent2)' },
+    'Off T':     { background: 'color-mix(in srgb, var(--warn) 15%, transparent)',    color: 'var(--warn)' },
+    Blocked:     { background: 'color-mix(in srgb, var(--warn) 15%, transparent)',    color: 'var(--warn)' },
+    Wayward:     { background: 'color-mix(in srgb, var(--warn) 15%, transparent)',    color: 'var(--warn)' },
+    Complete:    { background: 'color-mix(in srgb, var(--accent) 15%, transparent)',  color: 'var(--accent)' },
+    Incomplete:  { background: 'color-mix(in srgb, var(--warn) 15%, transparent)',    color: 'var(--warn)' },
+  };
+
+  const Spinner = () => <span className="spinner" />;
+
+  const LoadingBlock = ({ text = 'Loading…' }) => (
+    <div className="loading-block"><Spinner /> {text}</div>
+  );
+
+  const EmptyState = ({ icon = '📭', text = 'No data found.' }) => (
+    <div className="empty-state">
+      <div className="icon">{icon}</div>
+      <p>{text}</p>
+    </div>
+  );
+
+  const TypePill = ({ type }) => (
+    <span className="type-pill" style={TYPE_STYLES[type] || { background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+      {type}
+    </span>
+  );
+
+  const OutcomePill = ({ outcome }) => (
+    <span className="outcome-pill" style={OUTCOME_STYLES[outcome] || { background: 'var(--surface2)', color: 'var(--text-muted)' }}>
+      {outcome}
+    </span>
+  );
+
+  const PERIOD_LABELS = ['', '1H', '2H', 'ET1', 'ET2', 'PKS'];
+  const PeriodBadge = ({ period }) => (
+    <span className={`period-badge period-${period}`}>
+      {PERIOD_LABELS[period] || period}
+    </span>
+  );
+
+  const MatchCard = ({ match, onClick }) => (
+    <div className="match-card" onClick={onClick}>
+      <div className="date">
+        <span>{formatDate(match.match_date)}</span>
+        {match.kick_off && <span className="tag">{match.kick_off.substring(0, 5)}</span>}
+        {match.stadium  && <span className="tag">{match.stadium}</span>}
+      </div>
+      <div className="match-scoreline">
+        <div className="team home">{match.home_team}</div>
+        <div className="score">{match.home_score} – {match.away_score}</div>
+        <div className="team away">{match.away_team}</div>
+      </div>
+      <div className="meta">
+        {match.home_managers[0] && <span>🧢 {match.home_managers[0]}</span>}
+        {match.away_managers[0] && <span>🧢 {match.away_managers[0]}</span>}
+      </div>
+    </div>
+  );
+
+  const StatCard = ({ label, homeVal, awayVal, homeTeam, awayTeam, formatVal }) => {
+    const hDisp = formatVal ? formatVal(homeVal, homeTeam) : homeVal;
+    const aDisp = formatVal ? formatVal(awayVal, awayTeam) : awayVal;
+    const total = (homeVal + awayVal) || 1;
+    const hPct  = (homeVal / total * 100).toFixed(1);
+    const aPct  = (awayVal / total * 100).toFixed(1);
+    return (
+      <div className="stat-card">
+        <div className="label">{label}</div>
+        <div className="stat-bar-row">
+          <span className="stat-val home" style={{ color: 'var(--accent2)' }}>{hDisp}</span>
+          <div className="bar-wrap">
+            <div className="bar-home" style={{ width: `${hPct}%` }} />
+            <div className="bar-away" style={{ width: `${aPct}%` }} />
+          </div>
+          <span className="stat-val away" style={{ color: 'var(--warn)' }}>{aDisp}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: 'var(--text-dim)', marginTop: '2px' }}>
+          <span>{homeTeam}</span><span>{awayTeam}</span>
+        </div>
+      </div>
+    );
+  };
+
+  const StatsSection = ({ stats, homeTeam, awayTeam }) => {
+    if (!stats || !stats[homeTeam] || !stats[awayTeam]) return null;
+    const h = stats[homeTeam], a = stats[awayTeam];
+    const metrics = [
+      { label: 'Shots',         hv: h.shots,          av: a.shots },
+      { label: 'On Target',     hv: h.shots_on_target, av: a.shots_on_target },
+      { label: 'xG',            hv: h.xg,              av: a.xg,
+        formatVal: v => Number(v).toFixed(2) },
+      { label: 'Passes',        hv: h.passes,          av: a.passes },
+      { label: 'Pass Accuracy', hv: h.passes_complete, av: a.passes_complete,
+        formatVal: (v, team) => `${stats[team].passes > 0 ? ((v / stats[team].passes) * 100).toFixed(0) : 0}%` },
+      { label: 'Dribbles',      hv: h.dribbles,        av: a.dribbles },
+    ];
+    return (
+      <div style={{ marginBottom: '24px' }}>
+        <div className="section-heading" style={{ marginBottom: '14px' }}><h2>Match Statistics</h2></div>
+        <div className="stats-grid">
+          {metrics.map(m => (
+            <StatCard key={m.label} label={m.label}
+              homeVal={m.hv || 0} awayVal={m.av || 0}
+              homeTeam={homeTeam} awayTeam={awayTeam}
+              formatVal={m.formatVal}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const EventRow = ({ e, showXg, showPass }) => (
+    <tr>
+      <td><PeriodBadge period={e.period} /></td>
+      <td style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)' }}>
+        {e.minute}'
+        {e.second > 0 && (
+          <span style={{ fontSize: '0.7em', color: 'var(--text-dim)' }}>
+            :{String(e.second).padStart(2, '0')}
+          </span>
+        )}
+      </td>
+      <td><TypePill type={e.type || ''} /></td>
+      <td style={{ color: 'var(--text-muted)' }}>{e.team || ''}</td>
+      <td>{e.player || '—'}</td>
+      {showXg && (
+        <td>
+          {e.shot_outcome && <OutcomePill outcome={e.shot_outcome} />}
+          {e.shot_xg != null && (
+            <span className="xg-val" style={{ marginLeft: '6px' }}>{e.shot_xg}</span>
+          )}
+        </td>
+      )}
+      {showPass && (
+        <td>
+          {e.pass_outcome != null && <OutcomePill outcome={e.pass_outcome || 'Complete'} />}
+          {e.pass_length && (
+            <span style={{ color: 'var(--text-dim)', fontSize: '0.7rem', marginLeft: '4px' }}>
+              {e.pass_length}m
+            </span>
+          )}
+        </td>
+      )}
+      <td style={{ color: 'var(--text-dim)', fontSize: '0.78rem' }}>{e.play_pattern || ''}</td>
+    </tr>
+  );
+
+  const EventsSection = ({ events, allEvents, filters, setFilters }) => {
+    const types   = useMemo(() => [...new Set(allEvents.map(e => e.type).filter(Boolean))].sort(),   [allEvents]);
+    const teams   = useMemo(() => [...new Set(allEvents.map(e => e.team).filter(Boolean))].sort(),   [allEvents]);
+    const players = useMemo(() => [...new Set(allEvents.map(e => e.player).filter(Boolean))].sort(), [allEvents]);
+
+    const showXg   = events.some(e => e.shot_xg != null);
+    const showPass = events.some(e => e.pass_outcome != null);
+
+    const update = field => e => setFilters(f => ({ ...f, [field]: e.target.value }));
+    const clear  = () => setFilters({ type: '', team: '', player: '', period: '' });
+
+    return (
+      <div>
+        <div className="events-toolbar">
+          <select className="filter-select" value={filters.type}   onChange={update('type')}>
+            <option value="">All event types</option>
+            {types.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select className="filter-select" value={filters.team}   onChange={update('team')}>
+            <option value="">Both teams</option>
+            {teams.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <select className="filter-select" value={filters.player} onChange={update('player')}>
+            <option value="">All players</option>
+            {players.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          <select className="filter-select" value={filters.period} onChange={update('period')}>
+            <option value="">All periods</option>
+            <option value="1">1st Half</option>
+            <option value="2">2nd Half</option>
+            <option value="3">Extra Time 1st</option>
+            <option value="4">Extra Time 2nd</option>
+            <option value="5">Penalties</option>
+          </select>
+          <button className="btn btn-secondary" onClick={clear}>Clear</button>
+          <span className="events-count">{events.length.toLocaleString()} events</span>
+        </div>
+
+        {events.length === 0 ? (
+          <EmptyState icon="🔍" text="No events match the current filter." />
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Period</th><th>Min</th><th>Type</th><th>Team</th><th>Player</th>
+                  {showXg   && <th>xG / Outcome</th>}
+                  {showPass && <th>Pass</th>}
+                  <th>Pattern</th>
+                </tr>
+              </thead>
+              <tbody>
+                {events.map(e => <EventRow key={e.id} e={e} showXg={showXg} showPass={showPass} />)}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const MatchDetailPanel = ({ match, events, stats, loading, onBack, filters, setFilters }) => {
+    const filtered = useMemo(() => {
+      let f = events;
+      if (filters.type)   f = f.filter(e => e.type   === filters.type);
+      if (filters.team)   f = f.filter(e => e.team   === filters.team);
+      if (filters.player) f = f.filter(e => e.player === filters.player);
+      if (filters.period) f = f.filter(e => String(e.period) === filters.period);
+      return f;
+    }, [events, filters]);
+
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>← Back to matches</button>
+
+        <div className="match-hero">
+          <div className="hero-score">
+            <div className="team-name home">{match.home_team}</div>
+            <div className="main-score">{match.home_score} – {match.away_score}</div>
+            <div className="team-name away">{match.away_team}</div>
+          </div>
+          <div className="hero-meta">
+            {match.match_date && <span>📅 {formatDate(match.match_date)}</span>}
+            {match.kick_off   && <span>🕐 {match.kick_off.substring(0, 5)}</span>}
+            {match.stadium    && <span>🏟️ {match.stadium}</span>}
+            {match.referee    && <span>🟨 {match.referee}</span>}
+          </div>
+        </div>
+
+        {loading.stats ? (
+          <LoadingBlock text="Loading stats…" />
+        ) : (
+          <StatsSection stats={stats} homeTeam={match.home_team} awayTeam={match.away_team} />
+        )}
+
+        <div className="section-heading" style={{ marginBottom: '14px' }}>
+          <h2>Events</h2>
+          {events.length > 0 && <span className="sub">{events.length.toLocaleString()} total</span>}
+        </div>
+
+        {loading.events ? (
+          <LoadingBlock text="Loading events…" />
+        ) : (
+          <EventsSection events={filtered} allEvents={events} filters={filters} setFilters={setFilters} />
+        )}
+      </div>
+    );
+  };
+
+  const MatchesPanel = ({ comp, season, matches, loading, onSelect, onBack }) => {
+    const [search, setSearch] = useState('');
+    const filtered = useMemo(() => {
+      if (!search.trim()) return matches;
+      const q = search.toLowerCase();
+      return matches.filter(m =>
+        m.home_team.toLowerCase().includes(q) || m.away_team.toLowerCase().includes(q)
+      );
+    }, [matches, search]);
+
+    return (
+      <div>
+        <button className="back-btn" onClick={onBack}>← Back</button>
+        <div className="section-heading">
+          <h2>{comp.competition_name}</h2>
+          <span className="sub">{season.season_name}</span>
+        </div>
+        <div className="search-wrap">
+          <span className="icon">🔍</span>
+          <input className="search-box" type="text" placeholder="Search teams…"
+            value={search} onChange={e => setSearch(e.target.value)} />
+        </div>
+        {loading ? (
+          <LoadingBlock text="Loading matches…" />
+        ) : filtered.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="match-grid">
+            {filtered.map(m => (
+              <MatchCard key={m.match_id} match={m} onClick={() => onSelect(m)} />
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const WelcomePanel = () => (
+    <div id="panel-welcome">
+      <div className="welcome-icon">⚽</div>
+      <h1>StatsBomb Data Explorer</h1>
+      <p>Select a competition from the sidebar to browse seasons, matches, and detailed event data.</p>
+    </div>
+  );
+
+  const CompetitionGroup = ({ comp, isOpen, onToggle, onSeasonSelect, activeKey }) => (
+    <div className="comp-group">
+      <div
+        className={`comp-header${isOpen ? ' open' : ''}${activeKey?.startsWith(`${comp.competition_id}-`) ? ' active' : ''}`}
+        onClick={onToggle}
+      >
+        <span className="flag">{getFlag(comp.country_name)}</span>
+        <span className="cname">{comp.competition_name}</span>
+        <span className="arrow">▶</span>
+      </div>
+      <div className={`season-list${isOpen ? ' open' : ''}`}>
+        {comp.seasons.map(s => (
+          <div
+            key={s.season_id}
+            className={`season-item${activeKey === `${comp.competition_id}-${s.season_id}` ? ' active' : ''}`}
+            onClick={() => onSeasonSelect(comp, s)}
+          >
+            {s.season_name}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const Sidebar = ({ competitions, compsLoading, openCompId, onToggle, onSeasonSelect, activeKey }) => (
+    <aside id="sidebar">
+      <div className="sidebar-header">Competitions</div>
+      <div id="sidebar-list">
+        {compsLoading ? (
+          <div style={{ padding: '20px 16px' }}><LoadingBlock /></div>
+        ) : (
+          competitions.map(comp => (
+            <CompetitionGroup
+              key={comp.competition_id}
+              comp={comp}
+              isOpen={openCompId === comp.competition_id}
+              onToggle={() => onToggle(comp.competition_id)}
+              onSeasonSelect={onSeasonSelect}
+              activeKey={activeKey}
+            />
+          ))
+        )}
+      </div>
+    </aside>
+  );
+
+  const Breadcrumb = ({ items, onHome }) => (
+    <nav id="breadcrumb">
+      <span className={`crumb${items.length === 0 ? ' active' : ''}`} onClick={onHome}>Home</span>
+      {items.map((item, i) => (
+        <Fragment key={i}>
+          <span className="sep">›</span>
+          <span
+            className={`crumb${item.active ? ' active' : ''}`}
+            onClick={item.active ? undefined : item.onClick}
+          >
+            {item.label}
+          </span>
+        </Fragment>
+      ))}
+    </nav>
+  );
+
+  const AppHeader = ({ breadcrumbs, onHome }) => (
+    <header>
+      <a className="logo" href="#" onClick={e => { e.preventDefault(); onHome(); }}>
+        <div className="logo-icon">⚽</div>
+        StatsBomb Explorer
+      </a>
+      <Breadcrumb items={breadcrumbs} onHome={onHome} />
+    </header>
+  );
+
+  function App() {
+    const [competitions,   setCompetitions]   = useState([]);
+    const [compsLoading,   setCompsLoading]   = useState(true);
+    const [view,           setView]           = useState('welcome'); // 'welcome' | 'matches' | 'match'
+    const [currentComp,    setCurrentComp]    = useState(null);
+    const [currentSeason,  setCurrentSeason]  = useState(null);
+    const [allMatches,     setAllMatches]     = useState([]);
+    const [matchesLoading, setMatchesLoading] = useState(false);
+    const [currentMatch,   setCurrentMatch]   = useState(null);
+    const [allEvents,      setAllEvents]      = useState([]);
+    const [matchStats,     setMatchStats]     = useState(null);
+    const [eventsLoading,  setEventsLoading]  = useState(false);
+    const [statsLoading,   setStatsLoading]   = useState(false);
+    const [openCompId,     setOpenCompId]     = useState(null);
+    const [activeKey,      setActiveKey]      = useState('');
+    const [eventFilters,   setEventFilters]   = useState({ type: '', team: '', player: '', period: '' });
+
+    const contentRef = useRef(null);
+
+    // Load competitions once
+    useEffect(() => {
+      fetch('/api/competitions')
+        .then(r => r.json())
+        .then(data => { setCompetitions(data); setCompsLoading(false); });
+    }, []);
+
+    // Scroll to top whenever the main view changes
+    useEffect(() => {
+      if (contentRef.current) contentRef.current.scrollTop = 0;
+    }, [view, currentMatch]);
+
+    // --- Navigation ---
+    const goHome = useCallback(() => {
+      setView('welcome');
+      setOpenCompId(null);
+      setActiveKey('');
+    }, []);
+
+    const goToMatches = useCallback(() => {
+      setView('matches');
+      setCurrentMatch(null);
+    }, []);
+
+    const handleToggleComp = useCallback(cid => {
+      setOpenCompId(prev => (prev === cid ? null : cid));
+    }, []);
+
+    const handleSeasonSelect = useCallback(async (comp, season) => {
+      setCurrentComp(comp);
+      setCurrentSeason(season);
+      setView('matches');
+      setActiveKey(`${comp.competition_id}-${season.season_id}`);
+      setOpenCompId(comp.competition_id);
+      setAllMatches([]);
+      setMatchesLoading(true);
+      const data = await fetch(`/api/matches/${comp.competition_id}/${season.season_id}`).then(r => r.json());
+      setAllMatches(data);
+      setMatchesLoading(false);
+    }, []);
+
+    const handleMatchSelect = useCallback(async match => {
+      setCurrentMatch(match);
+      setView('match');
+      setAllEvents([]);
+      setMatchStats(null);
+      setEventsLoading(true);
+      setStatsLoading(true);
+      setEventFilters({ type: '', team: '', player: '', period: '' });
+      const [evData, stData] = await Promise.all([
+        fetch(`/api/events/${match.match_id}`).then(r => r.json()),
+        fetch(`/api/stats/${match.match_id}`).then(r => r.json()),
+      ]);
+      setAllEvents(evData);
+      setMatchStats(stData);
+      setEventsLoading(false);
+      setStatsLoading(false);
+    }, []);
+
+    // --- Breadcrumbs ---
+    const breadcrumbs = useMemo(() => {
+      if (view === 'welcome') return [];
+      if (view === 'matches') return [
+        { label: currentComp.competition_name },
+        { label: currentSeason.season_name, active: true },
+      ];
+      if (view === 'match') return [
+        { label: currentComp.competition_name, onClick: goToMatches },
+        { label: currentSeason.season_name,    onClick: goToMatches },
+        { label: `${currentMatch.home_team} vs ${currentMatch.away_team}`, active: true },
+      ];
+      return [];
+    }, [view, currentComp, currentSeason, currentMatch, goToMatches]);
+
+    return (
+      <>
+        <AppHeader breadcrumbs={breadcrumbs} onHome={goHome} />
+        <main>
+          <Sidebar
+            competitions={competitions}
+            compsLoading={compsLoading}
+            openCompId={openCompId}
+            onToggle={handleToggleComp}
+            onSeasonSelect={handleSeasonSelect}
+            activeKey={activeKey}
+          />
+          <section id="content" ref={contentRef}>
+            {view === 'welcome' && <WelcomePanel />}
+            {view === 'matches' && (
+              <MatchesPanel
+                comp={currentComp}
+                season={currentSeason}
+                matches={allMatches}
+                loading={matchesLoading}
+                onSelect={handleMatchSelect}
+                onBack={goHome}
+              />
+            )}
+            {view === 'match' && (
+              <MatchDetailPanel
+                match={currentMatch}
+                events={allEvents}
+                stats={matchStats}
+                loading={{ events: eventsLoading, stats: statsLoading }}
+                onBack={goToMatches}
+                filters={eventFilters}
+                setFilters={setEventFilters}
+              />
+            )}
+          </section>
+        </main>
+      </>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
