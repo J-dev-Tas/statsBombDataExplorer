@@ -1,5 +1,7 @@
 <img width="1920" height="962" alt="image" src="https://github.com/user-attachments/assets/ccadd0ad-b131-4708-9d63-39a495c47312" />
-# Created my own frontend to visualise the data and understand some datascience concepts
+Created my own frontend to visualise the data and understand some datascience concepts
+
+
 # StatsBomb Open Data
 
 Welcome to the StatsBomb Open Data repository.
